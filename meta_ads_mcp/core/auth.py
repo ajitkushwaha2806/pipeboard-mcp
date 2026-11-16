@@ -145,20 +145,32 @@ class AuthManager:
     
     def _get_token_cache_path(self) -> pathlib.Path:
         """Get the platform-specific path for token cache file"""
+        candidate_paths = []
         if platform.system() == "Windows":
-            base_path = pathlib.Path(os.environ.get("APPDATA", ""))
+            if os.environ.get("APPDATA"):
+                candidate_paths.append(pathlib.Path(os.environ["APPDATA"]) / "meta-ads-mcp")
         elif platform.system() == "Darwin":  # macOS
-            base_path = pathlib.Path.home() / "Library" / "Application Support"
+            candidate_paths.append(pathlib.Path.home() / "Library" / "Application Support" / "meta-ads-mcp")
+            candidate_paths.append(pathlib.Path.home() / ".meta-ads-mcp")
         else:  # Assume Linux/Unix
-            base_path = pathlib.Path.home() / ".config"
+            candidate_paths.append(pathlib.Path.home() / ".config" / "meta-ads-mcp")
+            candidate_paths.append(pathlib.Path.home() / ".meta-ads-mcp")
         
-        # Create directory if it doesn't exist
-        cache_dir = base_path / "meta-ads-mcp"
-        cache_dir.mkdir(parents=True, exist_ok=True, mode=TOKEN_CACHE_DIR_MODE)
-        # mkdir's mode is masked by the umask and is a no-op for a directory that
-        # already exists, so narrow it explicitly either way.
-        _restrict_permissions(cache_dir, TOKEN_CACHE_DIR_MODE)
+        candidate_paths.append(pathlib.Path("/tmp/meta-ads-mcp"))
+
+        cache_dir = None
+        for candidate in candidate_paths:
+            try:
+                candidate.mkdir(parents=True, exist_ok=True, mode=TOKEN_CACHE_DIR_MODE)
+                _restrict_permissions(candidate, TOKEN_CACHE_DIR_MODE)
+                cache_dir = candidate
+                break
+            except (OSError, PermissionError):
+                continue
         
+        if cache_dir is None:
+            cache_dir = pathlib.Path.cwd()
+
         return cache_dir / "token_cache.json"
     
     def _load_cached_token(self) -> bool:

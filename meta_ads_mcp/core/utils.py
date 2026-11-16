@@ -17,6 +17,17 @@ import socket
 import sys
 from urllib.parse import urlparse
 
+try:
+    from dotenv import load_dotenv
+    import pathlib
+    env_file = pathlib.Path(__file__).resolve().parent.parent.parent / ".env"
+    if env_file.exists():
+        load_dotenv(dotenv_path=env_file)
+    else:
+        load_dotenv()
+except ImportError:
+    pass
+
 # Check for Meta app credentials in environment
 META_APP_ID = os.environ.get("META_APP_ID", "")
 META_APP_SECRET = os.environ.get("META_APP_SECRET", "")
@@ -94,49 +105,56 @@ def _resolve_log_level() -> int:
 # Configure logging to file
 def setup_logging():
     """Set up logging to file for troubleshooting."""
-    # Get platform-specific path for logs
-    if platform.system() == "Windows":
-        base_path = pathlib.Path(os.environ.get("APPDATA", ""))
-    elif platform.system() == "Darwin":  # macOS
-        base_path = pathlib.Path.home() / "Library" / "Application Support"
-    else:  # Assume Linux/Unix
-        base_path = pathlib.Path.home() / ".config"
-    
-    # Create directory if it doesn't exist
-    log_dir = base_path / "meta-ads-mcp"
-    log_dir.mkdir(parents=True, exist_ok=True, mode=LOG_DIR_MODE)
-    restrict_permissions(log_dir, LOG_DIR_MODE)
-    
-    log_file = log_dir / "meta_ads_debug.log"
-    # Create the file ourselves so it exists with 0600 before the handler opens
-    # it; narrow it afterwards in case an earlier version left it at 0644.
-    if not log_file.exists():
-        try:
-            os.close(os.open(log_file, os.O_CREAT | os.O_WRONLY | os.O_APPEND, LOG_FILE_MODE))
-        except OSError:
-            pass
-    restrict_permissions(log_file, LOG_FILE_MODE)
-    
-    # Create a logger
     logger = logging.getLogger("meta-ads-mcp")
     logger.setLevel(_resolve_log_level())
+
+    # Get platform-specific path for logs, with safe fallbacks if permissions fail
+    candidate_paths = []
+    if platform.system() == "Windows":
+        if os.environ.get("APPDATA"):
+            candidate_paths.append(pathlib.Path(os.environ["APPDATA"]) / "meta-ads-mcp")
+    elif platform.system() == "Darwin":  # macOS
+        candidate_paths.append(pathlib.Path.home() / "Library" / "Application Support" / "meta-ads-mcp")
+        candidate_paths.append(pathlib.Path.home() / ".meta-ads-mcp")
+    else:  # Assume Linux/Unix
+        candidate_paths.append(pathlib.Path.home() / ".config" / "meta-ads-mcp")
+        candidate_paths.append(pathlib.Path.home() / ".meta-ads-mcp")
     
-    # Attach the file handler to this logger rather than the root logger, so
-    # third-party records (notably httpx's full request URLs) are not captured.
-    if not any(getattr(handler, "_meta_ads_mcp_handler", False) for handler in logger.handlers):
-        file_handler = logging.FileHandler(str(log_file))
-        file_handler._meta_ads_mcp_handler = True
-        file_handler.setFormatter(
-            logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        )
-        logger.addHandler(file_handler)
+    candidate_paths.append(pathlib.Path("/tmp/meta-ads-mcp"))
+
+    log_dir = None
+    for candidate in candidate_paths:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True, mode=LOG_DIR_MODE)
+            restrict_permissions(candidate, LOG_DIR_MODE)
+            log_dir = candidate
+            break
+        except (OSError, PermissionError):
+            continue
+
+    if log_dir is not None:
+        log_file = log_dir / "meta_ads_debug.log"
+        try:
+            if not log_file.exists():
+                os.close(os.open(log_file, os.O_CREAT | os.O_WRONLY | os.O_APPEND, LOG_FILE_MODE))
+            restrict_permissions(log_file, LOG_FILE_MODE)
+
+            if not any(getattr(handler, "_meta_ads_mcp_handler", False) for handler in logger.handlers):
+                file_handler = logging.FileHandler(str(log_file))
+                file_handler._meta_ads_mcp_handler = True
+                file_handler.setFormatter(
+                    logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+                )
+                logger.addHandler(file_handler)
+        except (OSError, PermissionError):
+            pass
+
     logger.propagate = False
     
     for library in _URL_LOGGING_LIBRARIES:
         logging.getLogger(library).setLevel(logging.WARNING)
     
-    # Log startup information
-    logger.info(f"Logging initialized. Log file: {log_file}")
+    return logger
     logger.info(f"Platform: {platform.system()} {platform.release()}")
     logger.info(f"Using META_ACCESS_TOKEN from environment: {using_direct_token}")
     

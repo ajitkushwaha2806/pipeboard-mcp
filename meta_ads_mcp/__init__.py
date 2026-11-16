@@ -4,6 +4,17 @@ Meta Ads MCP - Python Package
 This package provides a Meta Ads MCP integration
 """
 
+try:
+    from dotenv import load_dotenv
+    import pathlib
+    env_file = pathlib.Path(__file__).resolve().parent.parent / ".env"
+    if env_file.exists():
+        load_dotenv(dotenv_path=env_file)
+    else:
+        load_dotenv()
+except ImportError:
+    pass
+
 from meta_ads_mcp.core.server import main
 
 __version__ = "1.0.128"

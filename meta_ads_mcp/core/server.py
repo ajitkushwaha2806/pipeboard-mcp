@@ -209,11 +209,11 @@ def main():
     
     # Transport configuration arguments
     parser.add_argument("--transport", type=str, choices=["stdio", "streamable-http"], 
-                       default="stdio", 
+                       default=os.environ.get("MCP_TRANSPORT", "stdio"), 
                        help="Transport method: 'stdio' for MCP clients (default), 'streamable-http' for HTTP API access")
-    parser.add_argument("--port", type=int, default=8080, 
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8080)), 
                        help="Port for Streamable HTTP transport (default: 8080, only used with --transport streamable-http)")
-    parser.add_argument("--host", type=str, default="localhost", 
+    parser.add_argument("--host", type=str, default=os.environ.get("HOST", "localhost"), 
                        help="Host for Streamable HTTP transport (default: localhost, only used with --transport streamable-http)")
     parser.add_argument("--sse-response", action="store_true", 
                        help="Use SSE response format instead of JSON (default: JSON, only used with --transport streamable-http)")
@@ -361,4 +361,6 @@ def main():
     else:
         # Default stdio transport
         logger.info("Starting MCP server with stdio transport")
+        from . import accounts, campaigns, adsets, ads, insights, authentication
+        from . import ads_library, budget_schedules, reports
         mcp_server.run(transport='stdio') 

@@ -1,33 +1,64 @@
+# Environment & Secrets (NEVER COMMIT)
+.env
+.env.*
+!.env.example
+*.env
+*.pem
+*.key
+token_cache.json
+
 # Python-generated files
 __pycache__/
-*.py[oc]
+*.py[cod]
+*$py.class
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
+*.egg
 
 # Virtual environments
-.venv
-.cursor/rules/meta-ads-credentials.mdc
-.DS_Store
+.venv/
+venv/
+env/
+ENV/
 
-# Development environment files
+# Testing & Cache
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# OS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+Thumbs.db
+ehthumbs.db
+
+# Editor & IDE files
+.vscode/
+.idea/
+.cursor/
+*.swp
+*.swo
+*~
+
+# Development & Scratch files
+test
+test.*
+*.log
+meta_ads_debug.log
 .python-version
 poetry.lock
 uv.lock
 .uv.toml
-.cursor/
 
 # Generated content
 ad_creatives/
-
-# Debug and development files
 debug/
-*.pyc
-.pytest_cache/
-
-# Keep organized directories but exclude some debug content
 !debug/README.md
 
 internal/
-uv.lock
